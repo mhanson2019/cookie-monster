@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cookie Monster — Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Mono:wght@400;500&family=Nunito:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --egg:#F5F0E8; --egg2:#EDE6D8; --egg3:#E2D9C8; --egg4:#D5C9B4;
+    --choc:#3D1F0A; --choc2:#5C3317; --choc3:#7A4A28;
+    --caramel:#A0622A; --caramel2:#C4834A; --caramel3:#E8C898;
+    --cream:#FBF7F0; --muted:#9C8870; --muted2:#B8A898;
+    --danger:#B83232; --danger-bg:rgba(184,50,50,0.1);
+    --safe:#3D7A40; --safe-bg:rgba(61,122,64,0.1);
+    --warn:#9B6A1A; --deleted:#2B6B80; --deleted-bg:rgba(43,107,128,0.1);
+    --serif:'Fraunces',serif; --mono:'DM Mono',monospace; --body:'Nunito',sans-serif;
+  }
+
+  html, body { min-height: 100vh; background: var(--egg); color: var(--choc); font-family: var(--body); }
+
+  .page { max-width: 600px; margin: 0 auto; padding: 36px 28px 100px; }
+
+  /* HEADER */
+  .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1.5px solid var(--egg4); }
+  .page-header-cookie { flex-shrink: 0; }
+  .page-header-title { font-family: var(--serif); font-size: 28px; font-weight: 700; color: var(--choc); }
+  .page-header-title span { color: var(--caramel); font-style: italic; }
+  .page-header-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 36px; }
+  .stat-card { background: var(--cream); border: 1.5px solid var(--egg4); border-radius: 12px; padding: 16px 18px; box-shadow: 0 2px 8px rgba(61,31,10,0.06); }
+  .stat-card-num { font-family: var(--mono); font-size: 30px; font-weight: 500; line-height: 1; margin-bottom: 4px; }
+  .stat-card-num.deleted { color: var(--deleted); }
+  .stat-card-num.flagged { color: var(--danger); }
+  .stat-card-num.sites   { color: var(--caramel); }
+  .stat-card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .stat-card-sub { font-size: 10px; color: var(--muted2); margin-top: 4px; }
+
+  /* SECTION */
+  .section { margin-bottom: 32px; }
+  .section-title { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1.5px solid var(--egg4); }
+
+  /* SETTING ROW */
+  .setting-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--egg3); }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-info { flex: 1; }
+  .setting-label { font-size: 13px; font-weight: 600; color: var(--choc); margin-bottom: 3px; }
+  .setting-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+  /* TOGGLE */
+  .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; margin-top: 2px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track { position: absolute; inset: 0; cursor: pointer; background: var(--egg3); border: 1.5px solid var(--egg4); border-radius: 11px; transition: all 0.2s; }
+  .toggle-track::after { content: ''; position: absolute; left: 3px; top: 3px; width: 13px; height: 13px; background: var(--muted2); border-radius: 50%; transition: all 0.2s; }
+  .toggle input:checked + .toggle-track { background: var(--caramel); border-color: var(--caramel2); }
+  .toggle input:checked + .toggle-track::after { transform: translateX(18px); background: white; }
+
+  /* INLINE SLIDER */
+  .setting-slider { width: 140px; flex-shrink: 0; }
+  .setting-slider input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: var(--egg3); border-radius: 2px; outline: none; cursor: pointer; margin-bottom: 4px; }
+  .setting-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--caramel); border-radius: 50%; border: 2px solid var(--cream); cursor: pointer; box-shadow: 0 1px 4px rgba(61,31,10,0.2); }
+  .setting-slider-val { font-family: var(--mono); font-size: 10px; color: var(--caramel); text-align: center; font-weight: 500; }
+
+  /* MODE */
+  .mode-options { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 12px; }
+  .mode-opt { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border: 1.5px solid var(--egg4); border-radius: 10px; cursor: pointer; transition: all 0.15s; background: var(--egg); color: var(--choc); font-family: var(--body); font-size: 13px; text-align: left; width: 100%; }
+  .mode-opt:hover { border-color: var(--caramel2); background: var(--cream); }
+  .mode-opt.selected { border-color: var(--caramel); background: rgba(160,98,42,0.08); font-weight: 600; }
+  .mode-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--egg4); flex-shrink: 0; transition: all 0.15s; }
+  .mode-opt.selected .mode-dot { background: var(--caramel); border-color: var(--caramel); }
+
+  /* SAVE BAR */
+  .save-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--cream); border-top: 1.5px solid var(--egg4); padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 -4px 16px rgba(61,31,10,0.08); }
+  .save-hint { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .save-btn { background: var(--choc); border: none; border-radius: 9px; color: var(--egg); padding: 10px 26px; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 8px rgba(61,31,10,0.2); }
+  .save-btn:hover { background: var(--choc2); }
+  .save-btn.saved { background: var(--safe); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <div class="page-header-cookie">
+      <svg width="44" height="44" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs><radialGradient id="scg" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#D4956A"/><stop offset="100%" stop-color="#8B5A2B"/></radialGradient></defs>
+        <path d="M 50 8 C 62 6,76 10,84 20 Q 88 26,86 32 Q 92 38,88 46 C 94 58,90 72,80 82 C 68 94,48 96,34 88 C 18 80,10 64,12 48 C 10 32,20 16,35 10 C 40 8,45 8,50 8 Z" fill="url(#scg)"/>
+        <path d="M 76 10 Q 88 16,88 28 Q 92 22,86 14 Q 82 8,76 10 Z" fill="#6B3F1A" opacity="0.5"/>
+        <ellipse cx="42" cy="35" rx="7" ry="5.5" fill="#3D1F0A" transform="rotate(-15,42,35)"/>
+        <ellipse cx="63" cy="34" rx="6" ry="4.5" fill="#3D1F0A" transform="rotate(10,63,34)"/>
+        <ellipse cx="28" cy="60" rx="6.5" ry="5" fill="#3D1F0A" transform="rotate(-8,28,60)"/>
+        <ellipse cx="55" cy="68" rx="7" ry="5" fill="#3D1F0A" transform="rotate(12,55,68)"/>
+        <ellipse cx="72" cy="56" rx="5.5" ry="4" fill="#3D1F0A" transform="rotate(-5,72,56)"/>
+      </svg>
+    </div>
+    <div>
+      <div class="page-header-title">Cookie <span>Monster</span></div>
+      <div class="page-header-sub">Privacy settings & weekly stats</div>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-card-num deleted" id="stat-week-deleted">–</div>
+      <div class="stat-card-label">Deleted this week</div>
+      <div class="stat-card-sub" id="stat-week-sub">–</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-num flagged" id="stat-total-deleted">–</div>
+      <div class="stat-card-label">All time deleted</div>
+      <div class="stat-card-sub">since install</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-num sites" id="stat-sites">–</div>
+      <div class="stat-card-label">Sites monitored</div>
+      <div class="stat-card-sub">this week</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Deletion Behavior</div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-label">Deletion mode</div>
+        <div class="setting-desc">Controls how aggressively Cookie Monster acts on flagged cookies.</div>
+      </div>
+    </div>
+    <div class="mode-options" id="mode-options">
+      <button class="mode-opt" data-val="ask"><div class="mode-dot"></div>Ask me first — confirm before deleting</button>
+      <button class="mode-opt" data-val="auto"><div class="mode-dot"></div>Auto-delete known trackers + notify me <span style="color:var(--caramel);font-size:11px;margin-left:6px;font-family:var(--mono)">Recommended</span></button>
+      <button class="mode-opt" data-val="strict"><div class="mode-dot"></div>Maximum protection — delete everything flagged</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Session & Login</div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Keep shopping cart cookies</div><div class="setting-desc">Preserves cart and saved preferences between visits.</div></div>
+      <label class="toggle"><input type="checkbox" id="toggle-cart"><span class="toggle-track"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Protect social login cookies</div><div class="setting-desc">Keeps Google and Facebook auth cookies so "Login with" features work.</div></div>
+      <label class="toggle"><input type="checkbox" id="toggle-social"><span class="toggle-track"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Keep subscription cookies</div><div class="setting-desc">Prevents deletion of paywall and subscription access cookies.</div></div>
+      <label class="toggle"><input type="checkbox" id="toggle-subs"><span class="toggle-track"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Keep live chat cookies</div><div class="setting-desc">Preserves Intercom, Zendesk, Drift session cookies.</div></div>
+      <label class="toggle"><input type="checkbox" id="toggle-chat"><span class="toggle-track"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Login persistence</div><div class="setting-desc">How hard we try to keep you logged in vs. maximizing security.</div></div>
+      <div class="setting-slider"><input type="range" min="1" max="5" id="slider-login"><div class="setting-slider-val" id="slider-login-val">–</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Personalization</div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Keep display preference cookies</div><div class="setting-desc">Dark mode, font size, accessibility settings remembered across visits.</div></div>
+      <label class="toggle"><input type="checkbox" id="toggle-display"><span class="toggle-track"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Localization tolerance</div><div class="setting-desc">How aggressively we delete language/region/currency cookies.</div></div>
+      <div class="setting-slider"><input type="range" min="1" max="5" id="slider-locale"><div class="setting-slider-val" id="slider-locale-val">–</div></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Ad personalization tolerance</div><div class="setting-desc">Higher = keep ad cookies for relevance. Lower = delete them.</div></div>
+      <div class="setting-slider"><input type="range" min="1" max="5" id="slider-ads"><div class="setting-slider-val" id="slider-ads-val">–</div></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info"><div class="setting-label">Google tools trust level</div><div class="setting-desc">Higher = whitelist Maps/YouTube/reCAPTCHA cookies. Lower = flag them.</div></div>
+      <div class="setting-slider"><input type="range" min="1" max="5" id="slider-google"><div class="setting-slider-val" id="slider-google-val">–</div></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="save-bar">
+  <div class="save-hint" id="save-hint">Changes not yet saved</div>
+  <button class="save-btn" id="save-btn">Save Settings</button>
+</div>
+
+<script src="settings.js"></script>
+</body>
+</html>
