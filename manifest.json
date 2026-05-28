@@ -2,14 +2,12 @@
   "manifest_version": 3,
   "name": "Cookie Monster",
   "version": "1.0.0",
-  "description": "Automatically deletes known ad trackers and flags suspicious cookies on every site you visit.",
+  "description": "Audit what websites actually store after you accept cookies. Flag unexpected third-party trackers in real time.",
   "permissions": [
     "cookies",
     "tabs",
     "storage",
-    "activeTab",
-    "webRequest",
-    "notifications"
+    "activeTab"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -24,7 +22,8 @@
       "32": "icons/icon32.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_badge_background_color": "#FF6B35"
   },
   "icons": {
     "16": "icons/icon16.png",
