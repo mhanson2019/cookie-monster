@@ -53,10 +53,10 @@ async function loadConfig() {
   document.getElementById('toggle-subs').checked = !!c.keepSubscriptions;
   document.getElementById('toggle-chat').checked = !!c.keepLiveChat;
   document.getElementById('toggle-display').checked = !!c.keepDisplayPrefs;
+  document.getElementById('toggle-locale').checked = c.keepLocalization !== false;
 
   // Sliders
   initSlider('login',  'login',  c.loginPersistence || 3);
-  initSlider('locale', 'locale', c.localizationTolerance || 3);
   initSlider('ads',    'ads',    c.adTolerance || 2);
   initSlider('google', 'google', c.googleTrust || 3);
 
@@ -85,18 +85,18 @@ document.querySelectorAll('.mode-opt').forEach(opt => {
 // Save
 document.getElementById('save-btn').addEventListener('click', async () => {
   const config = {
-    keepShoppingCarts:     document.getElementById('toggle-cart').checked,
-    keepSocialLogins:      document.getElementById('toggle-social').checked,
-    keepSubscriptions:     document.getElementById('toggle-subs').checked,
-    keepLiveChat:          document.getElementById('toggle-chat').checked,
-    keepDisplayPrefs:      document.getElementById('toggle-display').checked,
-    loginPersistence:      parseInt(document.getElementById('slider-login').value),
-    localizationTolerance: parseInt(document.getElementById('slider-locale').value),
-    adTolerance:           parseInt(document.getElementById('slider-ads').value),
-    googleTrust:           parseInt(document.getElementById('slider-google').value),
-    deletionMode:          document.querySelector('.mode-opt.selected')?.dataset.val || 'auto',
-    onboardingComplete:    true,
-    configuredAt:          Date.now()
+    keepShoppingCarts:  document.getElementById('toggle-cart').checked,
+    keepSocialLogins:   document.getElementById('toggle-social').checked,
+    keepSubscriptions:  document.getElementById('toggle-subs').checked,
+    keepLiveChat:       document.getElementById('toggle-chat').checked,
+    keepDisplayPrefs:   document.getElementById('toggle-display').checked,
+    keepLocalization:   document.getElementById('toggle-locale').checked,
+    loginPersistence:   parseInt(document.getElementById('slider-login').value),
+    adTolerance:        parseInt(document.getElementById('slider-ads').value),
+    googleTrust:        parseInt(document.getElementById('slider-google').value),
+    deletionMode:       document.querySelector('.mode-opt.selected')?.dataset.val || 'auto',
+    onboardingComplete: true,
+    configuredAt:       Date.now()
   };
 
   await chrome.storage.local.set({ userConfig: config });

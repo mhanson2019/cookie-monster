@@ -61,7 +61,7 @@ function buildSummary() {
     { label: 'Live chat cookies', val: answers.keepLiveChat === 'true' ? 'Kept' : 'Deleted', on: answers.keepLiveChat === 'true' },
     { label: 'Subscription access cookies', val: answers.keepSubscriptions === 'true' ? 'Kept' : 'Deleted', on: answers.keepSubscriptions === 'true' },
     { label: 'Ad personalization', val: ['Delete all', 'Delete most', 'Neutral', 'Keep most', 'Keep all'][parseInt(answers.adTolerance || 2) - 1], on: parseInt(answers.adTolerance || 2) >= 3 },
-    { label: 'Deletion mode', val: { ask: 'Ask first', auto: 'Auto-delete + notify', strict: 'Maximum protection' }[answers.deletionMode] || 'Auto-delete', on: true },
+    { label: 'Deletion mode', val: { flag: 'Flag only', auto: 'Auto-delete + notify', strict: 'Maximum protection' }[answers.deletionMode] || 'Auto-delete', on: true },
   ];
 
   const box = document.getElementById('summary-box');
@@ -73,7 +73,7 @@ function buildSummary() {
       </div>`).join('');
 }
 
-function showComplete() {
+async function showComplete() {
   document.querySelectorAll('.question-card').forEach(c => c.classList.remove('active'));
   document.getElementById('nav-controls').style.display = 'none';
   document.getElementById('progress-label').style.display = 'none';
@@ -81,12 +81,55 @@ function showComplete() {
   document.getElementById('hero').style.display = 'none';
   document.getElementById('complete-screen').classList.add('active');
   buildSummary();
+
+  // Trigger live scan of current open tabs
+  const liveEl = document.getElementById('live-scan-result');
+  if (!liveEl) return;
+
+  liveEl.innerHTML = `<div class="live-scanning">scanning your open tabs...</div>`;
+
+  try {
+    // Ask background to scan all open tabs and return aggregate counts
+    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+    const httpTabs = tabs.filter(t => t.url && t.url.startsWith('http'));
+
+    if (httpTabs.length === 0) {
+      liveEl.innerHTML = `<div class="live-result"><div class="live-num live-safe">0</div><div class="live-label">No web tabs open yet — visit any site to see Cookie Monster in action</div></div>`;
+      return;
+    }
+
+    // Count cookies across all open tabs
+    const allCookies = await new Promise(resolve => chrome.cookies.getAll({}, resolve));
+    const totalCookies = allCookies.length;
+    const uniqueDomains = new Set(allCookies.map(c => c.domain.replace(/^\./, '').split('.').slice(-2).join('.'))).size;
+
+    liveEl.innerHTML = `
+      <div class="live-result">
+        <div class="live-stat-row">
+          <div class="live-stat">
+            <div class="live-num">${totalCookies.toLocaleString()}</div>
+            <div class="live-label">cookies in your browser</div>
+          </div>
+          <div class="live-stat">
+            <div class="live-num live-domain">${uniqueDomains}</div>
+            <div class="live-label">domains they're from</div>
+          </div>
+          <div class="live-stat">
+            <div class="live-num live-tabs">${httpTabs.length}</div>
+            <div class="live-label">tabs being watched</div>
+          </div>
+        </div>
+        <div class="live-note">Cookie Monster is now active. Visit any site to see what gets flagged and deleted in real time.</div>
+      </div>`;
+  } catch (e) {
+    liveEl.innerHTML = `<div class="live-note">Cookie Monster is active. Visit any site to see it in action.</div>`;
+  }
 }
 
 async function saveAndFinish() {
   const config = {
     keepShoppingCarts: answers.keepShoppingCarts === 'true',
-    localizationTolerance: parseInt(answers.localizationTolerance || 3),
+    keepLocalization: answers.localizationTolerance ? parseInt(answers.localizationTolerance) >= 3 : true,
     keepSocialLogins: answers.keepSocialLogins === 'true',
     keepDisplayPrefs: answers.keepDisplayPrefs === 'true',
     adTolerance: parseInt(answers.adTolerance || 2),

@@ -128,9 +128,9 @@
       </div>
     </div>
     <div class="mode-options" id="mode-options">
-      <button class="mode-opt" data-val="ask"><div class="mode-dot"></div>Ask me first — confirm before deleting</button>
+      <button class="mode-opt" data-val="flag"><div class="mode-dot"></div>Flag only — show suspicious cookies, delete nothing automatically</button>
       <button class="mode-opt" data-val="auto"><div class="mode-dot"></div>Auto-delete known trackers + notify me <span style="color:var(--caramel);font-size:11px;margin-left:6px;font-family:var(--mono)">Recommended</span></button>
-      <button class="mode-opt" data-val="strict"><div class="mode-dot"></div>Maximum protection — delete everything flagged</button>
+      <button class="mode-opt" data-val="strict"><div class="mode-dot"></div>Maximum protection — delete everything flagged automatically</button>
     </div>
   </div>
 
@@ -165,8 +165,8 @@
       <label class="toggle"><input type="checkbox" id="toggle-display"><span class="toggle-track"></span></label>
     </div>
     <div class="setting-row">
-      <div class="setting-info"><div class="setting-label">Localization tolerance</div><div class="setting-desc">How aggressively we delete language/region/currency cookies.</div></div>
-      <div class="setting-slider"><input type="range" min="1" max="5" id="slider-locale"><div class="setting-slider-val" id="slider-locale-val">–</div></div>
+      <div class="setting-info"><div class="setting-label">Remember language & region</div><div class="setting-desc">Keeps locale, language, currency, and timezone cookies so sites remember your preferences.</div></div>
+      <label class="toggle"><input type="checkbox" id="toggle-locale"><span class="toggle-track"></span></label>
     </div>
     <div class="setting-row">
       <div class="setting-info"><div class="setting-label">Ad personalization tolerance</div><div class="setting-desc">Higher = keep ad cookies for relevance. Lower = delete them.</div></div>

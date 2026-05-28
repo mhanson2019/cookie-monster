@@ -117,6 +117,18 @@
   .nav-next:hover { background: var(--choc2); transform: translateY(-1px); }
   .nav-next:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
+  .live-scanning { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; padding: 16px; animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:0.5; } 50% { opacity:1; } }
+  .live-result { padding: 4px 0; }
+  .live-stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .live-stat { text-align: center; background: var(--egg2); border-radius: 10px; padding: 14px 8px; border: 1.5px solid var(--egg4); }
+  .live-num { font-family: var(--mono); font-size: 26px; font-weight: 600; color: var(--choc); line-height: 1; margin-bottom: 4px; }
+  .live-num.live-domain { color: var(--caramel); }
+  .live-num.live-tabs { color: var(--safe); }
+  .live-num.live-safe { color: var(--safe); font-size: 16px; }
+  .live-label { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .live-note { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.6; padding: 0 8px; }
+
   /* COMPLETE */
   .complete-screen { display: none; text-align: center; padding: 20px 0; animation: fadeUp 0.4s ease; }
   .complete-screen.active { display: block; }
@@ -280,9 +292,9 @@
   <div class="question-card" data-q="10" data-type="multi" data-key="deletionMode">
     <div class="q-number">Question 10</div>
     <div class="q-text">How aggressive should Cookie Monster be?</div>
-    <div class="q-why"><strong>Why we ask:</strong> This is the core behavior setting. Ask first is safest. Auto-delete is hands-off and recommended for most users.</div>
+    <div class="q-why"><strong>Why we ask:</strong> This controls the core behavior. Flag only is the safest — you stay in control. Auto-delete is hands-off and recommended for most users.</div>
     <div class="multi-options">
-      <button class="multi-opt" data-val="ask"><div class="multi-dot"></div><div><strong>Ask me first</strong> — confirm before deleting anything unfamiliar</div></button>
+      <button class="multi-opt" data-val="flag"><div class="multi-dot"></div><div><strong>Flag only</strong> — show suspicious cookies in the popup, delete nothing automatically</div></button>
       <button class="multi-opt selected" data-val="auto"><div class="multi-dot"></div><div><strong>Auto-delete and notify me</strong> — delete known trackers silently, show a summary. <span style="color:var(--caramel);font-size:11px;">Recommended</span></div></button>
       <button class="multi-opt" data-val="strict"><div class="multi-dot"></div><div><strong>Maximum protection</strong> — delete everything flagged, no questions asked</div></button>
     </div>
@@ -304,6 +316,7 @@
     <h2 class="complete-title">You're <span>protected</span></h2>
     <p class="complete-sub">Cookie Monster is configured for your preferences. Here's what we'll do automatically on every site you visit.</p>
     <div class="complete-summary" id="summary-box"></div>
+    <div class="complete-summary" id="live-scan-result" style="margin-bottom:28px;min-height:80px;display:flex;align-items:center;justify-content:center;"></div>
     <button class="start-btn" id="start-btn">Start Browsing</button>
   </div>
 
