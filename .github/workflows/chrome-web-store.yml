@@ -1,0 +1,71 @@
+name: Chrome Web Store Deploy
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches manifest version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION=$(jq -r .version manifest.json)
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "Tag $TAG_VERSION does not match manifest.json version $MANIFEST_VERSION"
+            exit 1
+          fi
+
+      - name: Build extension zip
+        run: |
+          zip -r cookie-monster.zip \
+            manifest.json \
+            src \
+            icons \
+            data \
+            -x "*.DS_Store"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cookie-monster-${{ github.ref_name }}
+          path: cookie-monster.zip
+
+      - name: Upload to Chrome Web Store (draft)
+        env:
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          ACCESS_TOKEN=$(curl -sS -X POST \
+            -d "client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&refresh_token=$REFRESH_TOKEN&grant_type=refresh_token" \
+            https://oauth2.googleapis.com/token | jq -r .access_token)
+
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "Failed to obtain access token"
+            exit 1
+          fi
+
+          HTTP_STATUS=$(curl -sS -o upload_response.json -w "%{http_code}" \
+            -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T cookie-monster.zip \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXTENSION_ID")
+
+          cat upload_response.json
+          if [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "Upload failed with status $HTTP_STATUS"
+            exit 1
+          fi
+
+          UPLOAD_STATE=$(jq -r .uploadState upload_response.json)
+          if [ "$UPLOAD_STATE" != "SUCCESS" ]; then
+            echo "Upload state was $UPLOAD_STATE (expected SUCCESS)"
+            exit 1
+          fi
