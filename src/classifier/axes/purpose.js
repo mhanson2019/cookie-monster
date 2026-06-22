@@ -44,28 +44,43 @@ function matchesAny(name, patterns) {
 }
 
 /**
- * Infers the purpose of a cookie from its name.
+ * Infers the purpose of a cookie from its name alone.
+ * @param {string} cookieName
+ * @returns {{ purpose: string, confidence: 'high'|'medium'|'low' }}
+ */
+function purposeFromName(cookieName) {
+  if (matchesAny(cookieName, SECURITY_PATTERNS))   return { purpose: 'security',       confidence: 'high' };
+  if (matchesAny(cookieName, CONSENT_PATTERNS))    return { purpose: 'consent',        confidence: 'high' };
+  if (matchesAny(cookieName, AD_PATTERNS))         return { purpose: 'advertising',    confidence: 'high' };
+  if (matchesAny(cookieName, ANALYTICS_PATTERNS)) return { purpose: 'analytics',      confidence: 'high' };
+  if (matchesAny(cookieName, AUTH_PATTERNS))       return { purpose: 'auth',           confidence: 'medium' };
+  if (matchesAny(cookieName, FUNCTIONAL_PATTERNS)) return { purpose: 'functional',     confidence: 'medium' };
+  return { purpose: 'unknown', confidence: 'low' };
+}
+
+/**
+ * Infers the purpose of a cookie.
+ *
+ * A high-confidence name match (e.g. `_fbp` → advertising) wins over the broad
+ * domain category, because the cookie name is a more precise signal than the
+ * domain-wide classification. We fall back to the tracker DB category when the
+ * name is ambiguous, then to the medium/low-confidence name match.
+ *
  * @param {string} cookieName
  * @param {string|null} trackerCategory - from tracker DB, if known
  * @returns {{ purpose: string, confidence: 'high'|'medium'|'low' }}
  */
 export function getPurpose(cookieName, trackerCategory) {
-  // If tracker DB has a category, trust it
+  const nameResult = purposeFromName(cookieName);
+  if (nameResult.confidence === 'high') return nameResult;
+
   if (trackerCategory) {
     const catMap = {
       'a': 'advertising', 'n': 'analytics',
       't': 'tracking', 'f': 'functional', 'u': 'unknown'
     };
-    const p = catMap[trackerCategory] || 'unknown';
-    return { purpose: p, confidence: 'high' };
+    return { purpose: catMap[trackerCategory] || 'unknown', confidence: 'high' };
   }
 
-  if (matchesAny(cookieName, SECURITY_PATTERNS))   return { purpose: 'security',       confidence: 'high' };
-  if (matchesAny(cookieName, CONSENT_PATTERNS))    return { purpose: 'consent',        confidence: 'high' };
-  if (matchesAny(cookieName, AUTH_PATTERNS))       return { purpose: 'auth',           confidence: 'medium' };
-  if (matchesAny(cookieName, AD_PATTERNS))         return { purpose: 'advertising',    confidence: 'high' };
-  if (matchesAny(cookieName, ANALYTICS_PATTERNS)) return { purpose: 'analytics',      confidence: 'high' };
-  if (matchesAny(cookieName, FUNCTIONAL_PATTERNS)) return { purpose: 'functional',     confidence: 'medium' };
-
-  return { purpose: 'unknown', confidence: 'low' };
+  return nameResult;
 }

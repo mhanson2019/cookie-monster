@@ -1,13 +1,61 @@
-importScripts('../data/cookies.json');
+import { classifyCookie, loadTrackerDB } from './classifier/index.js';
 
-let cookieDict = null;
+// ── State ─────────────────────────────────────────────────────────────────────
+
+const DEFAULT_CONFIG = {
+  keepShoppingCarts: true,
+  keepSocialLogins:  true,
+  keepDisplayPrefs:  true,
+  keepLiveChat:      false,
+  keepSubscriptions: true,
+  keepLocalization:  true,
+  adTolerance:       2,
+  loginPersistence:  3,
+  googleTrust:       3,
+  deletionMode:      'auto',
+  onboardingComplete:false,
+};
+
+const DELETION_LOG_CAP = 500;
+
+let trackerDB = null;
+let userConfig = { ...DEFAULT_CONFIG };
 let tabCookieMap = {};
+// Cross-site audit accumulator. Keyed by `${name}|${cookieRoot}`.
+// IMPORTANT: never stores cookie.value — only metadata.
+let globalAccumulator = {};
+let initPromise = null;
 
-async function loadDictionary() {
-  const url = chrome.runtime.getURL('data/cookies.json');
-  const res = await fetch(url);
-  cookieDict = await res.json();
+// Expose for the service-worker console test harness. The classifier never
+// changes, so it can be exposed synchronously; trackerDB/userConfig are set
+// once async init completes.
+self.classifyCookie = classifyCookie;
+self.trackerDB = null;
+self.userConfig = userConfig;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  trackerDB = await loadTrackerDB();
+  self.trackerDB = trackerDB;
+
+  const stored = await chrome.storage.local.get(['userConfig', 'global_accumulator']);
+  if (stored.userConfig) {
+    userConfig = { ...DEFAULT_CONFIG, ...stored.userConfig };
+  }
+  self.userConfig = userConfig;
+  globalAccumulator = stored.global_accumulator || {};
+
+  updateGlobalBadge();
+  return trackerDB;
 }
+
+function ensureReady() {
+  if (!initPromise) initPromise = init();
+  return initPromise;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function extractRootDomain(hostname) {
   if (!hostname) return '';
@@ -16,127 +64,145 @@ function extractRootDomain(hostname) {
   return parts.slice(-2).join('.');
 }
 
-function matchesPattern(name, pattern) {
-  if (pattern.endsWith('*')) {
-    return name.startsWith(pattern.slice(0, -1));
-  }
-  if (pattern.startsWith('*')) {
-    return name.endsWith(pattern.slice(1));
-  }
-  return name === pattern;
-}
-
-function lookupCookie(name) {
-  if (!cookieDict) return null;
-  for (const [pattern, info] of Object.entries(cookieDict.known)) {
-    if (matchesPattern(name, pattern)) {
-      return info;
-    }
-  }
-  return null;
-}
-
-function isKnownTrackerDomain(domain) {
-  if (!cookieDict) return false;
-  const root = extractRootDomain(domain);
-  return cookieDict.known_tracker_domains.includes(root);
-}
-
-function hasSuspiciousPattern(name) {
-  if (!cookieDict) return null;
-  const lower = name.toLowerCase();
-  for (const { pattern, reason } of cookieDict.suspicious_patterns) {
-    if (lower.includes(pattern)) return reason;
-  }
-  return null;
-}
-
-function classifyCookie(cookie, tabRootDomain) {
-  const cookieRoot = extractRootDomain(cookie.domain);
-  const known = lookupCookie(cookie.name);
-  const isTrackerDomain = isKnownTrackerDomain(cookie.domain);
-  const suspiciousReason = hasSuspiciousPattern(cookie.name);
-  const isFirstParty = cookieRoot === tabRootDomain || cookie.domain.includes(tabRootDomain);
-
-  if (isFirstParty) {
-    return { flag: false, reason: 'first-party', known };
-  }
-
-  if (known) {
-    return { flag: false, reason: 'known-third-party', known };
-  }
-
-  if (isTrackerDomain) {
-    return {
-      flag: true,
-      severity: 'high',
-      reason: 'Known ad tracker domain',
-      known: null
-    };
-  }
-
-  if (suspiciousReason) {
-    return {
-      flag: true,
-      severity: 'medium',
-      reason: `Suspicious name pattern: ${suspiciousReason}`,
-      known: null
-    };
-  }
-
+/**
+ * Strips a chrome.cookies.Cookie down to privacy-safe metadata.
+ * Crucially, `value` is NEVER copied.
+ */
+function toMeta(cookie, tabRootDomain, classification) {
   return {
-    flag: true,
-    severity: 'low',
-    reason: 'Unknown third-party cookie',
-    known: null
+    name:          cookie.name,
+    domain:        cookie.domain,
+    cookieRoot:    extractRootDomain(cookie.domain),
+    tabRootDomain,
+    flag:          classification.flag,
+    autoDelete:    classification.autoDelete,
+    reason:        classification.reason,
+    purpose:       classification.purpose,
+    scope:         classification.scope,
+    persistence:   classification.persistence,
+    severity:      classification.severity,
+    score:         classification.score,
+    known:         classification.known,
+    timestamp:     Date.now(),
   };
 }
 
+function accumulate(meta) {
+  const key = `${meta.name}|${meta.cookieRoot}`;
+  const existing = globalAccumulator[key];
+  if (existing) {
+    existing.lastSeen  = Date.now();
+    existing.flag      = meta.flag;
+    existing.purpose   = meta.purpose;
+    existing.scope     = meta.scope;
+    existing.severity  = meta.severity;
+    existing.score     = meta.score;
+    existing.reason    = meta.reason;
+    if (!existing.sites.includes(meta.tabRootDomain)) {
+      existing.sites.push(meta.tabRootDomain);
+    }
+  } else {
+    // NOTE: no `value` field — metadata only.
+    globalAccumulator[key] = {
+      name:       meta.name,
+      domain:     meta.domain,
+      cookieRoot: meta.cookieRoot,
+      flag:       meta.flag,
+      purpose:    meta.purpose,
+      scope:      meta.scope,
+      severity:   meta.severity,
+      score:      meta.score,
+      reason:     meta.reason,
+      firstSeen:  Date.now(),
+      lastSeen:   Date.now(),
+      sites:      [meta.tabRootDomain],
+    };
+  }
+}
+
+function updateGlobalBadge() {
+  const count = Object.values(globalAccumulator).filter(c => c.flag).length;
+  if (count === 0) {
+    chrome.action.setBadgeText({ text: '' });
+  } else {
+    chrome.action.setBadgeText({ text: String(count) });
+    chrome.action.setBadgeBackgroundColor({ color: count > 5 ? '#E53935' : '#FF6B35' });
+  }
+}
+
+async function logDeletion(site, cookies) {
+  if (!cookies.length) return;
+  const stored = await chrome.storage.local.get('deletion_log');
+  const log = stored.deletion_log || [];
+  // `cookies` entries are privacy-safe metadata — no value field.
+  log.push({ timestamp: Date.now(), site, cookies });
+  const trimmed = log.length > DELETION_LOG_CAP ? log.slice(-DELETION_LOG_CAP) : log;
+  await chrome.storage.local.set({ deletion_log: trimmed });
+}
+
+async function removeCookie(cookie) {
+  const protocol = cookie.secure ? 'https' : 'http';
+  const cleanDomain = cookie.domain.replace(/^\./, '');
+  const path = cookie.path || '/';
+  await chrome.cookies.remove({ url: `${protocol}://${cleanDomain}${path}`, name: cookie.name });
+}
+
+// ── Scan ──────────────────────────────────────────────────────────────────────
+
 async function scanTabCookies(tabId, url) {
-  if (!cookieDict) await loadDictionary();
+  await ensureReady();
   if (!url || !url.startsWith('http')) return;
 
-  const urlObj = new URL(url);
-  const tabRootDomain = extractRootDomain(urlObj.hostname);
-
+  const tabRootDomain = extractRootDomain(new URL(url).hostname);
   const allCookies = await chrome.cookies.getAll({ url });
 
-  const results = allCookies.map(cookie => {
-    const classification = classifyCookie(cookie, tabRootDomain);
-    return {
-      name: cookie.name,
-      domain: cookie.domain,
-      cookieRoot: extractRootDomain(cookie.domain),
-      tabRootDomain,
-      ...classification,
-      timestamp: Date.now()
-    };
-  });
+  const flagged = [];
+  const safe = [];
+  const deleted = [];
 
-  const flagged = results.filter(r => r.flag);
-  const safe = results.filter(r => !r.flag);
+  for (const cookie of allCookies) {
+    const classification = classifyCookie(cookie, tabRootDomain, userConfig, trackerDB);
+    const meta = toMeta(cookie, tabRootDomain, classification);
+
+    accumulate(meta);
+
+    // Auto-deletion. makeDecision() already forces autoDelete=false in 'flag'
+    // mode; the explicit guard is belt-and-suspenders so flag mode can never
+    // delete anything.
+    if (classification.autoDelete && userConfig.deletionMode !== 'flag') {
+      await removeCookie(cookie);
+      deleted.push({
+        name:    meta.name,
+        domain:  meta.domain,
+        purpose: meta.purpose,
+        reason:  meta.reason,
+        score:   meta.score,
+      });
+      // Don't surface auto-deleted cookies in the live tab view.
+      continue;
+    }
+
+    if (meta.flag) flagged.push({ ...meta, secure: cookie.secure });
+    else safe.push({ ...meta, secure: cookie.secure });
+  }
 
   tabCookieMap[tabId] = {
     url,
     tabRootDomain,
     flagged,
     safe,
-    total: results.length,
-    scannedAt: Date.now()
+    total: flagged.length + safe.length,
+    scannedAt: Date.now(),
   };
 
-  updateBadge(tabId, flagged.length);
+  await logDeletion(tabRootDomain, deleted);
+  await chrome.storage.local.set({ global_accumulator: globalAccumulator });
+  updateGlobalBadge();
+
   return tabCookieMap[tabId];
 }
 
-function updateBadge(tabId, count) {
-  if (count === 0) {
-    chrome.action.setBadgeText({ text: '', tabId });
-  } else {
-    chrome.action.setBadgeText({ text: String(count), tabId });
-    chrome.action.setBadgeBackgroundColor({ color: count > 5 ? '#E53935' : '#FF6B35', tabId });
-  }
-}
+// ── Listeners ─────────────────────────────────────────────────────────────────
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
@@ -149,11 +215,24 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   if (tab.url) scanTabCookies(tabId, tab.url);
 });
 
-chrome.cookies.onChanged.addListener(async ({ cookie, removed }) => {
-  if (removed) return;
+chrome.cookies.onChanged.addListener(async ({ removed }) => {
+  if (removed) return; // ignore removals (incl. our own auto-deletions) to avoid loops
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tabs[0]?.id && tabs[0]?.url) {
     scanTabCookies(tabs[0].id, tabs[0].url);
+  }
+});
+
+// Keep in-memory config in sync with settings/onboarding saves (no reload needed).
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes.userConfig) {
+    userConfig = { ...DEFAULT_CONFIG, ...changes.userConfig.newValue };
+    self.userConfig = userConfig;
+  }
+  if (changes.global_accumulator && changes.global_accumulator.newValue) {
+    globalAccumulator = changes.global_accumulator.newValue;
+    updateGlobalBadge();
   }
 });
 
@@ -164,22 +243,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!tab) return sendResponse({ error: 'no tab' });
 
       let data = tabCookieMap[tab.id];
-      if (!data) {
-        data = await scanTabCookies(tab.id, tab.url);
-      }
+      if (!data) data = await scanTabCookies(tab.id, tab.url);
       sendResponse({ data, tabUrl: tab.url });
     });
     return true;
   }
 
   if (message.type === 'DELETE_COOKIE') {
-    const { name, domain, secure } = message.cookie;
-    const protocol = secure ? 'https' : 'http';
-    const cleanDomain = domain.startsWith('.') ? domain.slice(1) : domain;
-    chrome.cookies.remove({
-      url: `${protocol}://${cleanDomain}`,
-      name
-    }, () => sendResponse({ success: true }));
+    (async () => {
+      const { name, domain, secure } = message.cookie;
+      await removeCookie({ name, domain, secure });
+      await logDeletion(extractRootDomain(domain), [{ name, domain }]);
+      sendResponse({ success: true });
+    })();
     return true;
   }
 
@@ -189,11 +265,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const data = tabCookieMap[tab?.id];
       if (!data) return sendResponse({ success: false });
 
+      const removedMeta = [];
       for (const cookie of data.flagged) {
-        const protocol = cookie.secure ? 'https' : 'http';
-        const cleanDomain = cookie.domain.startsWith('.') ? cookie.domain.slice(1) : cookie.domain;
-        await chrome.cookies.remove({ url: `${protocol}://${cleanDomain}`, name: cookie.name });
+        await removeCookie(cookie);
+        removedMeta.push({ name: cookie.name, domain: cookie.domain, reason: cookie.reason });
       }
+      await logDeletion(data.tabRootDomain, removedMeta);
       await scanTabCookies(tab.id, tab.url);
       sendResponse({ success: true });
     });
@@ -201,4 +278,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-loadDictionary();
+ensureReady();
